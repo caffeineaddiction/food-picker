@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# dl-picker runtime data (session stats — delete to reset the office league)
+data/

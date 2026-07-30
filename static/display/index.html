@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>dl-picker — dinner, decided by horse race</title>
+    <link rel="stylesheet" href="/static/shared/theme.css" />
+    <link rel="stylesheet" href="/static/display/display.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏇</text></svg>"
+    />
+  </head>
+  <body data-screen="title">
+    <!-- The world. Always present; scrimmed behind the lobby screens. -->
+    <canvas id="track" aria-hidden="true"></canvas>
+
+    <!-- ------------------------------------------------------------ title -->
+    <section class="screen screen--center" data-screen="title">
+      <div class="title">
+        <div class="title__horses">🏇</div>
+        <h1 class="title__logo">dl-picker</h1>
+        <p class="title__tag">Dinner, decided by horse race.</p>
+        <button class="btn btn--primary btn--xl" id="newRace">New Race Night</button>
+        <p class="title__hint">Put this screen on the TV. Everyone else plays on their phone.</p>
+        <a class="btn btn--ghost title__join" id="joinInstead" href="/play">
+          📱 Joining from a phone? Tap here
+        </a>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------------------ setup -->
+    <section class="screen" data-screen="setup">
+      <div class="setup">
+        <header class="setup__head">
+          <h2>What are we ordering?</h2>
+          <p>One option per line. Each becomes a horse.</p>
+        </header>
+
+        <div class="setup__body">
+          <div class="setup__left">
+            <textarea
+              id="optionsInput"
+              class="setup__textarea"
+              spellcheck="false"
+              autocomplete="off"
+              placeholder="Chipotle&#10;Sushi&#10;Pizza&#10;Taco Bell&#10;Five Guys&#10;Panda Express"
+            ></textarea>
+            <div class="setup__hint" id="optionsHint"></div>
+          </div>
+
+          <div class="setup__right">
+            <div class="field">
+              <label>Game mode</label>
+              <div class="mode-grid" id="modeGrid"></div>
+            </div>
+            <div class="field">
+              <label>Track</label>
+              <div class="track-grid" id="trackGrid"></div>
+            </div>
+            <div class="field field--row">
+              <label for="durationInput">Race length</label>
+              <input id="durationInput" type="range" min="20" max="120" step="5" value="60" />
+              <output id="durationOut">60s</output>
+            </div>
+            <div class="field field--row">
+              <label class="toggle"
+                ><input type="checkbox" id="powerupsToggle" checked /> <span>Powerups</span></label
+              >
+              <label class="toggle"
+                ><input type="checkbox" id="eventsToggle" checked /> <span>Random events</span></label
+              >
+            </div>
+          </div>
+        </div>
+
+        <footer class="setup__foot">
+          <button class="btn btn--ghost" id="backToTitle">Back</button>
+          <button class="btn btn--primary btn--xl" id="toLobby">To the paddock →</button>
+        </footer>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------------------ lobby -->
+    <section class="screen" data-screen="lobby">
+      <div class="lobby">
+        <div class="lobby__qr card">
+          <div class="lobby__qr-inner" id="qrHolder"></div>
+          <div class="lobby__code">
+            <span>Room</span>
+            <b id="roomCode">----</b>
+          </div>
+          <p class="lobby__url" id="joinUrl"></p>
+          <p class="lobby__scan">📱 Scan to join · unlimited spectators</p>
+          <label class="tunnel" for="publicUrlInput">
+            <span class="tunnel__label">Phones off this network? Paste the tunnel URL</span>
+            <input
+              id="publicUrlInput"
+              class="tunnel__input"
+              type="url"
+              inputmode="url"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="https://something.trycloudflare.com"
+            />
+          </label>
+        </div>
+
+        <div class="lobby__right">
+          <header class="lobby__head">
+            <h2 id="lobbyTitle">The Paddock</h2>
+            <div class="lobby__chips">
+              <span class="chip" id="lobbyMode"></span>
+              <span class="chip" id="lobbyTrack"></span>
+              <span class="chip" id="lobbyDuration"></span>
+            </div>
+          </header>
+
+          <div class="lobby__horses" id="lobbyHorses"></div>
+          <p class="lobby__tip">Click a horse to pick its breed 🐎🦄🦜</p>
+
+          <div class="breedpicker" id="breedPicker" data-visible="false">
+            <div class="breedpicker__head">
+              <span id="breedPickerFor">Choose a breed</span>
+              <button class="btn btn--ghost btn--sm" id="breedPickerClose">Done</button>
+            </div>
+            <div class="breedpicker__grid" id="breedPickerGrid"></div>
+          </div>
+
+          <div class="lobby__roster">
+            <h3>In the room <span id="rosterCount">0</span></h3>
+            <div class="roster" id="roster"></div>
+          </div>
+
+          <div class="lobby__stats" id="sessionStats"></div>
+
+          <footer class="lobby__foot">
+            <button class="btn btn--ghost" id="editOptions">Edit menu</button>
+            <button class="btn btn--primary btn--xl" id="startRace" disabled>
+              START THE RACE
+            </button>
+          </footer>
+        </div>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------------------- race -->
+    <section class="screen screen--transparent" data-screen="race">
+      <div class="race">
+        <div class="race__top">
+          <div class="clockbox">
+            <span class="clockbox__value" id="raceClock">0.0</span>
+            <span class="clockbox__unit">sec</span>
+          </div>
+          <div class="race__chips">
+            <span class="chip" id="raceMode"></span>
+            <span class="chip chip--label" id="raceLabel" hidden></span>
+          </div>
+          <div class="minimap" id="minimap"></div>
+        </div>
+
+        <div class="race__rail" id="rail"></div>
+        <div class="race__notifications" id="notifications"></div>
+        <div class="race__banners" id="banners"></div>
+        <div class="race__ticker" id="ticker"></div>
+        <div class="primer" id="primer" data-visible="false"></div>
+        <div class="countdown" id="countdown" data-visible="false"></div>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------ finish overlays -->
+    <div class="photo" id="photoFinish" data-visible="false"></div>
+    <div class="ceremony" id="ceremony" data-visible="false"></div>
+    <div class="bracket-screen" id="bracketScreen" data-visible="false"></div>
+
+    <!-- Reactions fly above every screen, including the ceremony. -->
+    <div class="reaction-layer" id="reactionLayer" aria-hidden="true"></div>
+
+    <!-- Host bar: hidden until the pointer moves, so it never spoils the show -->
+    <div class="hostbar" id="hostbar">
+      <span class="hostbar__dot conn-dot" id="connDot" data-state="connecting"></span>
+      <button class="btn btn--ghost btn--sm" id="muteBtn">🔊 Sound on</button>
+      <button class="btn btn--ghost btn--sm" id="skipBtn">Skip ceremony</button>
+      <button class="btn btn--ghost btn--sm" id="rematchBtn">Race again</button>
+      <button class="btn btn--ghost btn--sm" id="abortBtn">Abort</button>
+    </div>
+
+    <div class="overlay" id="reconnectOverlay">
+      <div class="overlay__card card">
+        <h2>Reconnecting…</h2>
+        <p>The race is safe on the server. Hang on.</p>
+      </div>
+    </div>
+
+    <script type="module" src="/static/display/display.js"></script>
+  </body>
+</html>

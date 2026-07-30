@@ -1,0 +1,42 @@
+[project]
+name = "food-picker"
+version = "1.0.0"
+description = "dl-picker — the office picks dinner by racing horses"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "segno>=1.6",
+    "uvicorn[standard]>=0.30",
+]
+
+[dependency-groups]
+# A dependency group (not an extra) so a plain `uv sync` installs it and
+# `uv run pytest` works without extra flags.
+dev = [
+    "pytest>=8.0",
+    "httpx>=0.27",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+dl-picker = "main:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# UP042: `class Foo(str, Enum)` is deliberate — these enums are serialised by
+# `.value` and consumed by pydantic; StrEnum would change `str()` semantics.
+ignore = ["UP042"]
+
+[tool.ruff.lint.per-file-ignores]
+# The powerup catalog is a dense declarative table; one item per line reads
+# better than wrapping every registration across five lines.
+"server/powerups.py" = ["E501"]

@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!-- viewport-fit=cover so the layout can claim the notch area and pad it back with env(). -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#1a1b2e" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- Empty data URI: keeps the browser from firing a favicon request (strict offline). -->
+    <link rel="icon" href="data:," />
+    <title>dl-picker · controller</title>
+    <!-- Absolute paths: this page is served at /play (no trailing slash), so
+         relative hrefs would resolve against / and 404. -->
+    <link rel="stylesheet" href="/static/shared/theme.css" />
+    <link rel="stylesheet" href="/static/play/play.css" />
+  </head>
+
+  <body>
+    <div class="app">
+      <!-- Reconnect banner: non-blocking, never covers the tap zone. -->
+      <div class="offlinebar" aria-live="polite">
+        <span class="offlinebar__dot"></span>
+        <span id="offlinebar-text">Reconnecting…</span>
+      </div>
+
+      <main class="screens" id="screens">
+        <!-- ------------------------------------------------------------ JOIN -->
+        <section class="screen screen--join" data-screen="join" aria-label="Join the race">
+          <div class="topbar">
+            <span class="brand">dl<span class="brand__dot">·</span>picker</span>
+            <span class="topbar__spacer"></span>
+            <span class="roomtag">ROOM&nbsp;<b data-room>····</b></span>
+            <span class="conn-dot" data-conn-dot data-state="connecting"></span>
+          </div>
+
+          <div class="join__head">
+            <h1 class="join__title" id="join-title">PICK YOUR HORSE</h1>
+            <p class="join__hint" id="join-hint">Your thumb powers its legs.</p>
+          </div>
+
+          <label class="namefield" for="name-input">
+            <span class="namefield__label">YOUR NAME</span>
+            <input
+              id="name-input"
+              class="namefield__input"
+              type="text"
+              maxlength="14"
+              autocomplete="nickname"
+              autocapitalize="words"
+              autocorrect="off"
+              spellcheck="false"
+              enterkeyhint="done"
+              placeholder="Tap to type"
+            />
+          </label>
+
+          <div class="horserow" id="horse-row" role="list" aria-label="Dinner options"></div>
+
+          <div class="join__foot">
+            <button class="btn btn--primary join__confirm" id="confirm-picks" type="button" hidden>
+              RIDE THIS HORSE →
+            </button>
+            <button class="btn btn--ghost" id="spectate-btn" type="button">Just watching 👀</button>
+          </div>
+        </section>
+
+        <!-- ----------------------------------------------------------- LOBBY -->
+        <section class="screen" data-screen="lobby" aria-label="Lobby">
+          <div class="topbar">
+            <span class="roomtag">ROOM&nbsp;<b data-room>····</b></span>
+            <span class="topbar__spacer"></span>
+            <span class="chip" id="lobby-count">0 in</span>
+            <span class="conn-dot" data-conn-dot data-state="connecting"></span>
+          </div>
+
+          <div class="mycard" id="lobby-card">
+            <div class="mycard__emoji" id="lobby-emoji">🐎</div>
+            <div class="mycard__body">
+              <div class="mycard__kicker" id="lobby-kicker">YOU BACK</div>
+              <div class="mycard__name" id="lobby-name">—</div>
+              <div class="mycard__backers" id="lobby-backers">—</div>
+            </div>
+            <button class="mycard__swap" id="lobby-swap" type="button">Change</button>
+          </div>
+
+          <div class="waiting">
+            <div class="waiting__dots" aria-hidden="true"><i></i><i></i><i></i></div>
+            <p class="waiting__text" id="lobby-status">Waiting for the host to start the race…</p>
+            <p class="waiting__sub" id="lobby-sub"></p>
+          </div>
+
+          <div class="screen__foot">
+            <button class="btn readytoggle" data-ready-toggle type="button" aria-pressed="false">
+              <span class="readytoggle__box" aria-hidden="true">✓</span>
+              <span>I'm ready 🏁</span>
+            </button>
+            <div class="reactions" data-reactions></div>
+          </div>
+        </section>
+
+        <!-- --------------------------------------------------------- BETTING -->
+        <section class="screen" data-screen="betting" aria-label="Betting window">
+          <div class="topbar">
+            <span class="chip chip--money">🥇&nbsp;<b id="bet-bankroll">0</b></span>
+            <span class="topbar__spacer"></span>
+            <span class="chip chip--clock" id="bet-clock">–</span>
+            <span class="conn-dot" data-conn-dot data-state="connecting"></span>
+          </div>
+
+          <div class="betting__head">
+            <h2 class="section-title">PUNTERS' CLUB</h2>
+            <p class="section-sub" id="bet-note">Pick a stake, then tap a horse.</p>
+          </div>
+
+          <div class="stepper" role="group" aria-label="Stake">
+            <button class="stepper__btn" id="stake-down" type="button" aria-label="Lower stake">−</button>
+            <div class="stepper__value">
+              <b id="stake-value">0</b>
+              <span>stake</span>
+            </div>
+            <button class="stepper__btn" id="stake-up" type="button" aria-label="Raise stake">+</button>
+          </div>
+
+          <div class="betlist" id="bet-list"></div>
+        </section>
+
+        <!-- ------------------------------------------------------------ RACE -->
+        <section class="screen screen--race" data-screen="race" aria-label="Race controller">
+          <header class="horsecard" id="race-card">
+            <div class="horsecard__main">
+              <div class="horsecard__emoji" id="race-emoji">🐎</div>
+              <div class="horsecard__id">
+                <div class="horsecard__name" id="race-name">—</div>
+                <div class="horsecard__pos" id="race-pos">—</div>
+              </div>
+              <div class="horsecard__meta">
+                <span class="horsecard__clock" id="race-clock">–</span>
+                <span class="conn-dot" data-conn-dot data-state="connecting"></span>
+              </div>
+            </div>
+            <div class="progress" aria-hidden="true"><div class="progress__fill" id="race-progress"></div></div>
+          </header>
+
+          <div class="slots" id="slots"></div>
+
+          <div class="lane" aria-live="off">
+            <div class="lane__item" id="notify-text"></div>
+          </div>
+
+          <!-- The pace meter is welded to the top of the tap buttons rather than
+               floating over them: a pace challenge is answered with the thumb, so
+               its feedback belongs where the thumb is already looking — but a
+               button you cannot see is a button you cannot hit. -->
+          <div class="tapwrap">
+            <div class="pacemeter" id="pace-meter" data-visible="false" data-verdict="hold">
+              <div class="pacemeter__head">
+                <span class="pacemeter__emoji" id="pace-emoji">🎯</span>
+                <span class="pacemeter__title" id="pace-title">HOLD THE PACE</span>
+                <span class="pacemeter__verdict" id="pace-verdict">HOLD IT</span>
+              </div>
+              <div class="pacemeter__scale">
+                <i class="pacemeter__band" id="pace-band"></i>
+                <i class="pacemeter__needle" id="pace-needle"></i>
+              </div>
+              <div class="pacemeter__hold">
+                <i class="pacemeter__holdfill" id="pace-fill"></i>
+              </div>
+            </div>
+            <div class="tapgrid" id="tap-grid" data-count="1"></div>
+          </div>
+
+          <!-- Countdown primer: it takes the space the spectator standings use, so
+               it never covers a tap button's countdown state. -->
+          <div class="primer" id="primer" data-visible="false">
+            <div class="primer__head">
+              <b id="primer-count">THE ITEMS</b>
+              <span>⬆️ helps · ⬇️ hurts · 🛡️ shields · 🎲 chaos</span>
+            </div>
+            <div class="primer__grid" id="primer-grid"></div>
+          </div>
+
+          <div class="standings" id="standings" aria-label="Live standings"></div>
+
+          <footer class="stats">
+            <div class="stats__row">
+              <div class="stat"><b id="stat-taps">0</b><span>taps</span></div>
+              <div class="stat"><b id="stat-tps">0.0</b><span>taps/sec</span></div>
+              <div class="stat stat--chips" id="stat-chips"></div>
+            </div>
+            <div class="reactions" data-reactions></div>
+          </footer>
+        </section>
+
+        <!-- --------------------------------------------------------- RESULTS -->
+        <section class="screen" data-screen="results" aria-label="Results">
+          <div class="topbar">
+            <span class="roomtag">ROOM&nbsp;<b data-room>····</b></span>
+            <span class="topbar__spacer"></span>
+            <span class="chip" id="res-phase">RESULTS</span>
+            <span class="conn-dot" data-conn-dot data-state="connecting"></span>
+          </div>
+
+          <div class="winner">
+            <div class="winner__kicker">DINNER IS</div>
+            <div class="winner__name">
+              <span class="winner__emoji" id="winner-emoji">🏆</span>
+              <span id="winner-name">…</span>
+            </div>
+            <div class="winner__note" id="winner-note"></div>
+          </div>
+
+          <div class="statcard">
+            <h3 class="statcard__title" id="statcard-title">YOUR RACE</h3>
+            <div class="statgrid">
+              <div class="statgrid__cell"><b id="res-taps">0</b><span>taps</span></div>
+              <div class="statgrid__cell"><b id="res-peak">0.0</b><span>peak t/s</span></div>
+              <div class="statgrid__cell"><b id="res-used">0</b><span>powerups</span></div>
+              <div class="statgrid__cell"><b id="res-hits">0</b><span>hits landed</span></div>
+            </div>
+            <div class="statgrid statgrid--trio">
+              <div class="statgrid__cell"><b id="res-unlocks">0</b><span>unlocked</span></div>
+              <div class="statgrid__cell"><b id="res-fumbles">0</b><span>fumbled</span></div>
+              <div class="statgrid__cell"><b id="res-fastest">—</b><span>fastest</span></div>
+            </div>
+            <p class="statcard__line" id="res-line"></p>
+          </div>
+
+          <div class="screen__foot">
+            <button class="btn btn--primary readytoggle" data-ready-toggle type="button" aria-pressed="false">
+              <span class="readytoggle__box" aria-hidden="true">✓</span>
+              <span>Ready for a rematch</span>
+            </button>
+            <div class="reactions" data-reactions></div>
+          </div>
+        </section>
+
+        <!-- ------------------------------------------------------- DEAD END -->
+        <section class="screen screen--dead" data-screen="dead" aria-label="Disconnected">
+          <div class="dead">
+            <div class="dead__emoji" id="dead-emoji">🐴</div>
+            <h2 class="dead__title" id="dead-title">No race here</h2>
+            <p class="dead__text" id="dead-text">Ask the host for the room code on the TV.</p>
+            <form class="codeform" id="code-form">
+              <input
+                id="code-input"
+                class="codeform__input"
+                type="text"
+                inputmode="text"
+                maxlength="4"
+                autocapitalize="characters"
+                autocomplete="off"
+                autocorrect="off"
+                spellcheck="false"
+                placeholder="ABCD"
+                aria-label="Room code"
+              />
+              <button class="btn btn--primary" type="submit">Join room</button>
+            </form>
+          </div>
+        </section>
+      </main>
+
+      <!-- --------------------------------------------------- target picker -->
+      <div class="scrim" id="sheet-scrim" data-visible="false"></div>
+      <div
+        class="sheet"
+        id="target-sheet"
+        data-visible="false"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Choose a target"
+      >
+        <div class="sheet__grip" aria-hidden="true"></div>
+        <div class="sheet__head">
+          <span class="sheet__emoji" id="sheet-emoji">🎯</span>
+          <b id="sheet-title">CHOOSE A TARGET</b>
+          <span class="polarity" id="sheet-polarity" aria-hidden="true">⬆️</span>
+        </div>
+        <div class="sheet__tags">
+          <span class="scopetag" id="sheet-scope">YOUR HORSE</span>
+        </div>
+        <p class="sheet__blurb" id="sheet-blurb"></p>
+        <div class="sheet__list" id="sheet-list"></div>
+        <button class="btn btn--ghost sheet__cancel" id="sheet-cancel" type="button">Cancel</button>
+      </div>
+
+      <!-- ------------------------------------------------- unlock challenge -->
+      <div
+        class="sheet sheet--challenge"
+        id="challenge-sheet"
+        data-visible="false"
+        data-busy="false"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Unlock this powerup"
+      >
+        <div class="sheet__grip" aria-hidden="true"></div>
+        <div class="sheet__head">
+          <span class="sheet__emoji" id="challenge-emoji">🔒</span>
+          <b id="challenge-item">LOCKED</b>
+          <span class="polarity" id="challenge-polarity" aria-hidden="true">⬆️</span>
+        </div>
+        <div class="sheet__tags">
+          <span class="scopetag" id="challenge-scope">YOUR HORSE</span>
+          <span class="challenge__kicker" id="challenge-kicker">ANSWER TO ARM IT</span>
+        </div>
+        <div class="challenge__prompt" id="challenge-prompt">—</div>
+        <div class="challenge__choices" id="challenge-choices" role="group" aria-label="Answers"></div>
+        <p class="challenge__hint" id="challenge-hint"></p>
+        <button class="btn btn--ghost sheet__cancel" id="challenge-cancel" type="button">
+          Not worth the thumb time
+        </button>
+      </div>
+
+      <div class="toasts" id="toasts" aria-live="polite"></div>
+    </div>
+
+    <script type="module" src="/static/play/play.js"></script>
+  </body>
+</html>

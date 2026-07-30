@@ -1,0 +1,2221 @@
+/* dl-picker phone controller (SPEC.md §5.3).
+ *
+ * Portrait, thumb-first, never scrolls. Every value here is derived from
+ * shared/theme.css tokens — this file adds layout and phone-only feel, no new
+ * palette. Row heights are flex-basis with `flex-shrink: 1` so the tap zone can
+ * hold its guaranteed 50dvh floor on short screens by squeezing its neighbours.
+ */
+
+/* --------------------------------------------------------------- foundation */
+
+html,
+body {
+  overflow: hidden;
+}
+
+body {
+  /* position:fixed is the reliable way to kill iOS rubber-band scrolling. */
+  position: fixed;
+  inset: 0;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  background: radial-gradient(120% 80% at 50% -10%, #23254a 0%, var(--ink) 55%, #14152a 100%);
+}
+
+.app {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+  transition: filter var(--dur), opacity var(--dur);
+}
+
+/* Offline: dim the whole controller so nobody wonders why taps do nothing. */
+body[data-conn="offline"] .app {
+  filter: saturate(0.45) brightness(0.68);
+}
+
+.screens {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* ------------------------------------------------------------------ screens */
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.5rem 0.9rem 0.7rem;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(10px) scale(0.985);
+  transition: opacity var(--dur) var(--ease-out), transform var(--dur) var(--ease-out),
+    visibility 0s linear var(--dur);
+}
+
+.screen[data-active="true"] {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition: opacity var(--dur) var(--ease-out), transform var(--dur-slow) var(--ease-spring),
+    visibility 0s;
+}
+
+.screen__foot {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+}
+
+/* ------------------------------------------------------------------- topbar */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+  min-height: 1.9rem;
+  font-size: 0.78rem;
+}
+
+.topbar__spacer {
+  flex: 1 1 auto;
+}
+
+.brand {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--cloud);
+  opacity: 0.9;
+}
+
+.brand__dot {
+  color: var(--hero);
+}
+
+.roomtag {
+  color: var(--cloud-dim);
+  letter-spacing: 0.14em;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.roomtag b {
+  color: var(--cloud);
+  letter-spacing: 0.2em;
+}
+
+.chip--money b {
+  color: var(--hero);
+}
+
+.chip--clock {
+  font-variant-numeric: tabular-nums;
+}
+
+.chip--clock[data-urgent="true"] {
+  background: rgba(255, 93, 93, 0.22);
+  color: #ffd7d7;
+  animation: nudge 0.6s var(--ease-spring) infinite;
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  line-height: 1.1;
+}
+
+.section-sub {
+  margin: 0.15rem 0 0;
+  font-size: 0.82rem;
+  color: var(--cloud-dim);
+}
+
+/* --------------------------------------------------------------- join screen */
+
+.join__head {
+  flex: 0 0 auto;
+}
+
+.join__title {
+  font-size: clamp(1.5rem, 7vw, 2.1rem);
+  line-height: 1;
+}
+
+.join__hint {
+  margin: 0.3rem 0 0;
+  color: var(--cloud-dim);
+  font-size: 0.85rem;
+}
+
+.namefield {
+  display: block;
+  flex: 0 0 auto;
+  background: var(--ink-2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.9rem 0.6rem;
+  transition: border-color var(--dur), transform var(--dur-fast) var(--ease-spring);
+}
+
+.namefield[data-nudge="true"] {
+  border-color: var(--red);
+  animation: shake 0.4s var(--ease-out);
+}
+
+.namefield__label {
+  display: block;
+  font-size: 0.65rem;
+  letter-spacing: 0.16em;
+  font-weight: 800;
+  color: var(--cloud-dim);
+}
+
+.namefield__input {
+  display: block;
+  width: 100%;
+  margin-top: 0.15rem;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--cloud);
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 800;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.namefield__input:focus {
+  outline: none;
+}
+
+.namefield__input::placeholder {
+  color: rgba(207, 206, 224, 0.35);
+}
+
+/* Horizontal card row — the only horizontal scroll in the app (§4.3).
+ * Grows into the space it has but caps out, so cards stay card-shaped on tall
+ * phones instead of stretching into columns. */
+.horserow {
+  display: flex;
+  gap: 0.6rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 22rem;
+  align-items: stretch;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  scrollbar-width: none;
+  padding: 0.15rem 0.1rem;
+}
+
+.horserow::-webkit-scrollbar {
+  display: none;
+}
+
+.horsepick {
+  position: relative;
+  flex: 0 0 46%;
+  min-width: 8.5rem;
+  scroll-snap-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.6rem 0.5rem;
+  border-radius: var(--radius-lg);
+  background: var(--ink-2);
+  border: 2px solid rgba(255, 255, 255, 0.07);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--dur) var(--ease-spring), border-color var(--dur),
+    box-shadow var(--dur), opacity var(--dur);
+}
+
+.horsepick::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(120% 90% at 50% 0%, var(--horse-color) 0%, transparent 62%);
+  opacity: 0.22;
+  pointer-events: none;
+}
+
+.horsepick:active {
+  transform: scale(0.955);
+}
+
+.horsepick[data-selected="true"] {
+  border-color: var(--horse-color);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08), 0 12px 26px rgba(0, 0, 0, 0.45);
+}
+
+.horsepick__emoji {
+  font-size: clamp(2.2rem, 11vw, 3.2rem);
+  line-height: 1;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
+}
+
+.horsepick__name {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 800;
+  text-align: center;
+  line-height: 1.05;
+  word-break: break-word;
+}
+
+/* The breed is the host's choice, not the player's — so it's information, not a
+   control: same weight as the backer count, right under the name. */
+.horsepick__breed {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  max-width: 100%;
+  padding: 0.14em 0.5em;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--cloud);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.horsepick__breedicon {
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.horsepick__backers {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--cloud-dim);
+}
+
+.screen--join[data-locked="true"] .horsepick {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.join__foot {
+  display: flex;
+  justify-content: center;
+  flex: 0 0 auto;
+  margin-top: auto; /* pin to the bottom; slack collects above the button */
+}
+
+/* -------------------------------------------------------------- lobby screen */
+
+.mycard {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex: 0 0 auto;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius-lg);
+  background: var(--ink-2);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: var(--shadow-2);
+  overflow: hidden;
+}
+
+.mycard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, var(--horse-color, var(--hero)) -10%, transparent 55%);
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+.mycard__emoji {
+  font-size: 2.8rem;
+  line-height: 1;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
+}
+
+.mycard__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.mycard__kicker {
+  font-size: 0.63rem;
+  letter-spacing: 0.18em;
+  font-weight: 800;
+  color: var(--cloud-dim);
+}
+
+.mycard__name {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 1.05;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mycard__backers {
+  font-size: 0.8rem;
+  color: var(--cloud-dim);
+  font-weight: 700;
+}
+
+.mycard__swap {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  padding: 0.35em 0.7em;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  transition: transform var(--dur-fast) var(--ease-spring);
+}
+
+.mycard__swap:active {
+  transform: scale(0.93);
+}
+
+.waiting {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  text-align: center;
+}
+
+.waiting__dots {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.waiting__dots i {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--hero);
+  animation: bob 1.1s var(--ease-out) infinite;
+}
+
+.waiting__dots i:nth-child(2) {
+  animation-delay: 0.13s;
+}
+
+.waiting__dots i:nth-child(3) {
+  animation-delay: 0.26s;
+}
+
+.waiting__text {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--cloud);
+  max-width: 18rem;
+}
+
+.waiting__sub {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--cloud-dim);
+  max-width: 18rem;
+}
+
+.readytoggle {
+  width: 100%;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+}
+
+.readytoggle__box {
+  display: grid;
+  place-items: center;
+  width: 1.35em;
+  height: 1.35em;
+  border-radius: 0.4em;
+  border: 2px solid currentColor;
+  font-size: 0.8em;
+  color: inherit;
+  opacity: 0.35;
+  transition: opacity var(--dur), background var(--dur), transform var(--dur) var(--ease-spring);
+}
+
+.readytoggle[aria-pressed="true"] {
+  background: linear-gradient(180deg, #6cf0a5, var(--green));
+  color: #06301b;
+}
+
+.readytoggle[aria-pressed="true"] .readytoggle__box {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.55);
+  transform: scale(1.08);
+}
+
+/* ------------------------------------------------------------ betting screen */
+
+.betting__head {
+  flex: 0 0 auto;
+}
+
+.stepper {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+}
+
+.stepper__btn {
+  flex: 0 0 3.6rem;
+  border-radius: var(--radius);
+  background: var(--ink-3);
+  font-size: 1.7rem;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: var(--shadow-1);
+  transition: transform var(--dur-fast) var(--ease-spring), opacity var(--dur);
+}
+
+.stepper__btn:active {
+  transform: scale(0.93);
+}
+
+.stepper__btn[disabled] {
+  opacity: 0.3;
+}
+
+.stepper__value {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  background: var(--ink-2);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.stepper__value b {
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  line-height: 1;
+  color: var(--hero);
+  font-variant-numeric: tabular-nums;
+}
+
+.stepper__value span {
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  font-weight: 800;
+  color: var(--cloud-dim);
+}
+
+.betlist {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  overflow-y: auto;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-right: 0.1rem;
+}
+
+.betlist::-webkit-scrollbar {
+  display: none;
+}
+
+.betrow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: 0 0 auto;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius);
+  background: var(--ink-2);
+  border: 2px solid rgba(255, 255, 255, 0.06);
+  text-align: left;
+  transition: transform var(--dur-fast) var(--ease-spring), border-color var(--dur),
+    background var(--dur);
+}
+
+.betrow:active {
+  transform: scale(0.98);
+}
+
+.betrow[data-mine="true"] {
+  border-color: var(--hero);
+  background: rgba(255, 197, 61, 0.14);
+}
+
+.betrow[disabled] {
+  opacity: 0.45;
+}
+
+.betrow__emoji {
+  font-size: 1.7rem;
+  line-height: 1;
+}
+
+.betrow__id {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.betrow__name {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.betrow__pool {
+  font-size: 0.7rem;
+  color: var(--cloud-dim);
+  font-weight: 700;
+}
+
+.betrow__odds {
+  flex: 0 0 auto;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--hero);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------- race screen */
+
+.screen--race {
+  padding: 0.4rem 0.7rem 0.55rem;
+  gap: 0.45rem;
+}
+
+.horsecard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.4rem;
+  flex: 0 1 clamp(68px, 13vh, 106px);
+  flex: 0 1 clamp(68px, 13dvh, 106px);
+  min-height: 0;
+  padding: 0.5rem 0.75rem 0.6rem;
+  border-radius: var(--radius);
+  background: var(--ink-2);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+  transition: background var(--dur), box-shadow var(--dur);
+}
+
+.horsecard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, var(--horse-color, var(--sky)) -20%, transparent 50%);
+  opacity: 0.18;
+  pointer-events: none;
+}
+
+.horsecard[data-flash="up"] {
+  animation: flashUp var(--dur-slow) var(--ease-out);
+}
+
+.horsecard[data-flash="down"] {
+  animation: flashDown var(--dur-slow) var(--ease-out);
+}
+
+.horsecard__main {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.horsecard__emoji {
+  font-size: clamp(1.6rem, 7vw, 2.3rem);
+  line-height: 1;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45));
+}
+
+.horsecard__id {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.horsecard__name {
+  font-family: var(--font-display);
+  font-size: clamp(0.95rem, 4.6vw, 1.3rem);
+  font-weight: 800;
+  line-height: 1.05;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.horsecard__pos {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--cloud-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.horsecard__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+}
+
+.horsecard__clock {
+  font-size: 0.85rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--cloud);
+  opacity: 0.85;
+}
+
+.progress {
+  position: relative;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.progress__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--horse-color, var(--hero)), var(--cloud));
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+/* ------------------------------------------------------------- polarity */
+
+/* One colour per polarity, so "helps me" and "hurts them" never have to be read
+ * to be understood. Used on slots, sheets and the countdown primer alike. */
+.pol-good {
+  --pol-color: var(--green);
+}
+.pol-bad {
+  --pol-color: var(--red);
+}
+.pol-protect {
+  --pol-color: var(--sky);
+}
+.pol-chaos {
+  --pol-color: var(--violet);
+}
+
+.polarity {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.scopetag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.16em 0.5em;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px var(--pol-color, var(--cloud-dim));
+  color: var(--pol-color, var(--cloud-dim));
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+
+/* "ALL HORSES" is the one scope that surprises people mid-race. Make it loud. */
+.scopetag[data-scope="everyone"] {
+  background: var(--pol-color, var(--hero));
+  box-shadow: none;
+  color: var(--ink);
+  animation: nudge 1.6s var(--ease-spring) infinite;
+}
+
+/* --------------------------------------------------------- powerup slots */
+
+.slots {
+  display: grid;
+  grid-template-columns: repeat(var(--slot-count, 2), minmax(0, 1fr));
+  gap: 0.45rem;
+  flex: 0 1 clamp(84px, 13.5vh, 116px);
+  flex: 0 1 clamp(84px, 13.5dvh, 116px);
+  min-height: 0;
+}
+
+.slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.12rem;
+  padding: 0.85rem 0.4rem 0.4rem;
+  border-radius: var(--radius);
+  border: 2px dashed rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--cloud-dim);
+  overflow: hidden;
+  isolation: isolate;
+  transition: transform var(--dur-fast) var(--ease-spring), border-color var(--dur),
+    background var(--dur), box-shadow var(--dur), opacity var(--dur);
+}
+
+.slot:not([data-state="empty"]) {
+  border-style: solid;
+  border-color: var(--tier-color, var(--cloud-dim));
+  background: var(--ink-2);
+  color: var(--cloud);
+  box-shadow: inset 0 0 24px rgba(255, 255, 255, 0.05), var(--shadow-1);
+}
+
+.slot:not([data-state="empty"]):active {
+  transform: scale(0.955);
+}
+
+/* Armed reads as a live button; locked reads as a thing behind glass. */
+.slot[data-state="armed"] {
+  border-color: var(--pol-color, var(--hero));
+  box-shadow: 0 0 0 1px var(--pol-color, var(--hero)), 0 0 18px -4px var(--pol-color, var(--hero)),
+    var(--shadow-1);
+}
+
+.slot[data-state="locked"] .slot__emoji,
+.slot[data-state="cooling"] .slot__emoji,
+.slot[data-state="pace"] .slot__emoji {
+  filter: grayscale(0.55) brightness(0.85);
+}
+
+.slot[data-state="cooling"] {
+  border-color: var(--red);
+}
+
+.slot[data-state="pace"] {
+  border-color: var(--green);
+}
+
+.slot[data-pending="true"] {
+  opacity: 0.5;
+}
+
+.slot__top {
+  position: absolute;
+  inset: 0.3rem 0.4rem auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.slot__emoji {
+  font-size: clamp(1.25rem, 5.6vw, 1.75rem);
+  line-height: 1;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.45));
+  transition: filter var(--dur);
+}
+
+.slot__name {
+  max-width: 100%;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-align: center;
+  line-height: 1.1;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slot__foot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  max-width: 100%;
+}
+
+/* Same pill as the sheets wear, shrunk to fit two of them on one phone row. */
+.slot__scope {
+  padding: 0.12em 0.4em;
+  font-size: 0.48rem;
+  letter-spacing: 0.06em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.slot__cta {
+  font-size: 0.48rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  color: var(--cloud-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.slot[data-state="armed"] .slot__cta {
+  color: var(--hero);
+}
+
+.slot[data-state="locked"] .slot__cta {
+  color: var(--cloud);
+  animation: nudge 1.8s var(--ease-spring) infinite;
+}
+
+.slot[data-state="cooling"] .slot__cta {
+  color: var(--red);
+}
+
+.slot[data-state="pace"] .slot__cta {
+  color: var(--green);
+}
+
+.slot__tier {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--tier-color, transparent);
+  opacity: 0.9;
+}
+
+/* Doubles as the pace charge (filling, green) and the retry penalty (draining,
+ * red) — the same "how long until I can use this" question either way. */
+.slot__fill {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgba(255, 255, 255, 0.1);
+  transform: scaleY(0);
+  transform-origin: bottom center;
+}
+
+.slot[data-state="pace"] .slot__fill {
+  background: rgba(62, 220, 129, 0.26);
+}
+
+.slot[data-state="cooling"] .slot__fill {
+  background: rgba(255, 93, 93, 0.22);
+}
+
+.slot__bar {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 4px;
+  background: var(--tier-color, var(--hero));
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+/* ------------------------------------------------------- notification lane */
+
+.lane {
+  position: relative;
+  flex: 0 0 1.4rem;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.lane__item {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--cloud-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+}
+
+.lane__item b {
+  color: var(--cloud);
+}
+
+.lane__item[data-tier="epic"] b {
+  color: var(--hero);
+}
+
+.lane__item[data-tier="rare"] b {
+  color: var(--sky);
+}
+
+/* ---------------------------------------------------------------- tap zone */
+
+/* The tap area owns at least half the screen, always (vh for pre-dvh Safari).
+   The pace meter, when there is one, comes out of that half rather than out of
+   the chrome around it — the chrome is already at its floor on a small phone. */
+.tapwrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 50vh;
+  min-height: 50dvh;
+}
+
+/* During the countdown nothing is tappable, so the primer may borrow the room. */
+.screen--race[data-primer="true"] .tapwrap {
+  min-height: 34vh;
+  min-height: 34dvh;
+}
+
+/* One to four buttons share the grid: one horse gets the whole slab, four a 2x2. */
+.tapgrid {
+  display: grid;
+  gap: 0.4rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  grid-template-columns: 1fr;
+}
+
+.tapgrid[data-count="2"] {
+  grid-template-rows: 1fr 1fr;
+}
+
+.tapgrid[data-count="3"],
+.tapgrid[data-count="4"] {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+/* Three horses: the first takes the full top row so nothing looks orphaned. */
+.tapgrid[data-count="3"] .tapzone:first-child {
+  grid-column: span 2;
+}
+
+.tapzone {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  border-radius: var(--radius-lg);
+  background: radial-gradient(125% 100% at 50% 0%, #ffe08f 0%, var(--hero) 42%, #eda200 100%);
+  color: #3a2600;
+  overflow: hidden;
+  isolation: isolate;
+  /* We own every gesture in here — no scroll, no zoom, no long-press menu. */
+  touch-action: none;
+  box-shadow: 0 8px 0 rgba(0, 0, 0, 0.32), var(--shadow-2),
+    inset 0 2px 0 rgba(255, 255, 255, 0.55);
+  transition: transform var(--dur-fast) var(--ease-spring), filter var(--dur),
+    box-shadow var(--dur);
+}
+
+.tapzone:active {
+  transform: translateY(2px);
+  box-shadow: 0 5px 0 rgba(0, 0, 0, 0.32), var(--shadow-1),
+    inset 0 2px 0 rgba(255, 255, 255, 0.55);
+}
+
+.tapzone[data-state="countdown"],
+.tapzone[data-state="idle"] {
+  filter: saturate(0.3) brightness(0.72);
+}
+
+/* An eliminated option: greyed out, and an invitation to back somebody else. */
+.tapzone[data-state="out"] {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--cloud);
+  filter: grayscale(1);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.16);
+}
+
+/* Each button wears its horse's colour so four of them stay tellable apart. */
+.tapzone__horse {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.22);
+  color: #fff;
+  box-shadow: inset 0 0 0 2px var(--horse-color, transparent);
+  max-width: 92%;
+}
+
+.tapzone__emoji {
+  font-size: 1.15rem;
+}
+
+.tapzone__name {
+  font-weight: 800;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tapgrid[data-count="1"] .tapzone__emoji {
+  font-size: 1.9rem;
+}
+
+.tapgrid[data-count="1"] .tapzone__name {
+  font-size: 1.15rem;
+}
+
+.tapzone[data-state="done"] {
+  filter: grayscale(0.75) brightness(0.7);
+}
+
+/* A pace unlock rings the button it is judged from, in the colour of the fix:
+ * blue = go faster, red = back off, green = you're doing it. */
+.tapzone::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 0 transparent;
+  pointer-events: none;
+  transition: box-shadow var(--dur);
+  z-index: 2;
+}
+
+.tapzone[data-pace="slow"]::after {
+  box-shadow: inset 0 0 0 6px var(--sky);
+}
+
+.tapzone[data-pace="fast"]::after {
+  box-shadow: inset 0 0 0 6px var(--red);
+}
+
+.tapzone[data-pace="hold"]::after {
+  box-shadow: inset 0 0 0 6px var(--green);
+}
+
+.tapzone[data-maxed="true"] {
+  animation: maxglow 0.9s ease-in-out infinite;
+}
+
+.tapzone__ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.ring {
+  fill: none;
+  stroke-width: 3;
+}
+
+.ring--track {
+  stroke: rgba(58, 38, 0, 0.14);
+}
+
+.ring--fill {
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-linecap: round;
+  stroke-dasharray: 276.46;
+  stroke-dashoffset: 276.46;
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: rotate(-90deg);
+}
+
+.tapzone__stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.tapgrid[data-count="3"] .tapzone__label,
+.tapgrid[data-count="4"] .tapzone__label {
+  font-size: 1.6rem;
+}
+
+.tapgrid[data-count="2"] .tapzone__label {
+  font-size: 2.2rem;
+}
+
+.tapzone__label {
+  font-family: var(--font-display);
+  font-size: clamp(3rem, 19vw, 5.5rem);
+  font-weight: 800;
+  line-height: 0.9;
+  letter-spacing: 0.01em;
+  text-shadow: 0 3px 0 rgba(255, 255, 255, 0.4);
+  font-variant-numeric: tabular-nums;
+}
+
+.tapzone__sub {
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  opacity: 0;
+  transform: translateY(5px);
+  transition: opacity var(--dur), transform var(--dur) var(--ease-spring);
+}
+
+.tapzone[data-sub="true"] .tapzone__sub {
+  opacity: 0.75;
+  transform: none;
+}
+
+.tapzone[data-maxed="true"] .tapzone__sub {
+  opacity: 1;
+  color: #7a1c00;
+}
+
+.ripples {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ripple {
+  position: absolute;
+  width: 30vmin;
+  height: 30vmin;
+  margin: -15vmin 0 0 -15vmin;
+  border-radius: 50%;
+  opacity: 0;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0) 68%);
+  will-change: transform, opacity;
+}
+
+.ripple[data-dead="true"] {
+  background: radial-gradient(circle, rgba(26, 27, 46, 0.5) 0%, rgba(26, 27, 46, 0) 68%);
+}
+
+/* ------------------------------------------------------------- pace meter */
+
+/* Sits on top of the buttons and tucks under their edge, so it reads as part of
+   the tap slab rather than a floating widget. Never intercepts a tap. */
+.pacemeter {
+  display: none;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: -0.5rem;
+  padding: 0.4rem 0.6rem 0.75rem;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: linear-gradient(180deg, var(--ink-3), var(--ink-2));
+  box-shadow: inset 0 0 0 2px var(--pace-color, var(--green)), var(--shadow-1);
+  pointer-events: none;
+}
+
+.pacemeter[data-visible="true"] {
+  display: flex;
+}
+
+.pacemeter[data-verdict="hold"] {
+  --pace-color: var(--green);
+}
+
+.pacemeter[data-verdict="slow"] {
+  --pace-color: var(--sky);
+}
+
+.pacemeter[data-verdict="fast"] {
+  --pace-color: var(--red);
+}
+
+.pacemeter__head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.pacemeter__emoji {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.pacemeter__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--cloud);
+}
+
+.pacemeter__verdict {
+  flex: 0 0 auto;
+  padding: 0.16em 0.5em;
+  border-radius: 999px;
+  background: var(--pace-color, var(--green));
+  color: var(--ink);
+  font-size: 0.62rem;
+}
+
+.pacemeter__scale {
+  position: relative;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.pacemeter__band {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: rgba(62, 220, 129, 0.3);
+  box-shadow: inset 2px 0 0 var(--green), inset -2px 0 0 var(--green);
+}
+
+.pacemeter__needle {
+  position: absolute;
+  inset: 0 auto;
+  width: 5px;
+  margin-left: -2.5px;
+  border-radius: 999px;
+  background: var(--cloud);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.85);
+}
+
+.pacemeter__hold {
+  height: 0.4rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.pacemeter__holdfill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--green), #b6ffd8);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+/* --------------------------------------------------------- countdown primer */
+
+.primer {
+  display: none;
+  flex: 0 1 auto;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.primer[data-visible="true"] {
+  display: flex;
+}
+
+.primer__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+  font-size: 0.52rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--cloud-dim);
+}
+
+.primer__head b {
+  color: var(--cloud);
+  letter-spacing: 0.16em;
+}
+
+.primer__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(3rem, 1fr));
+  gap: 0.22rem;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.primeritem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.05rem;
+  padding: 0.18rem 0.1rem 0.2rem;
+  border-radius: 0.6rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-bottom: 2px solid var(--pol-color, var(--cloud-dim));
+}
+
+.primeritem[data-scope="everyone"] {
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 0 0 1px var(--pol-color, var(--cloud-dim));
+}
+
+.primeritem__top {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  line-height: 1;
+}
+
+.primeritem__emoji {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.primeritem__pol {
+  font-size: 0.55rem;
+  font-style: normal;
+  line-height: 1;
+}
+
+.primeritem__name {
+  font-size: 0.42rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.05;
+  text-align: center;
+  text-transform: uppercase;
+  color: var(--cloud-dim);
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------ stats strip */
+
+.stats {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.35rem;
+  flex: 0 1 clamp(54px, 9.5vh, 84px);
+  flex: 0 1 clamp(54px, 9.5dvh, 84px);
+  min-height: 0;
+}
+
+.stats__row {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.stat {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+
+.stat b {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat span {
+  font-size: 0.64rem;
+  letter-spacing: 0.1em;
+  font-weight: 800;
+  color: var(--cloud-dim);
+}
+
+.stat--chips {
+  margin-left: auto;
+  gap: 0.3rem;
+}
+
+.microchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2em;
+  padding: 0.2em 0.55em;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 0.68rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.microchip[data-kind="espresso"] {
+  background: rgba(255, 197, 61, 0.2);
+  color: var(--hero);
+}
+
+/* ------------------------------------------------------------- reactions */
+
+.reactions {
+  display: flex;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+}
+
+.reaction {
+  flex: 1 1 0;
+  position: relative;
+  padding: 0.35rem 0;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.07);
+  font-size: clamp(1.1rem, 5.5vw, 1.5rem);
+  line-height: 1.15;
+  overflow: hidden;
+  transition: transform var(--dur-fast) var(--ease-spring), opacity var(--dur);
+}
+
+.reaction:active {
+  transform: scale(0.9);
+}
+
+.reaction[data-cooling="true"] {
+  opacity: 0.35;
+}
+
+/* ------------------------------------------------------ spectator variant */
+
+.standings {
+  position: relative;
+  display: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.screen--race[data-spectator="true"] .slots,
+.screen--race[data-spectator="true"] .tapwrap,
+.screen--race[data-spectator="true"] .primer,
+.screen--race[data-spectator="true"] .stats__row {
+  display: none;
+}
+
+.screen--race[data-spectator="true"] .standings {
+  display: block;
+}
+
+.standing {
+  position: absolute;
+  inset: 0 0 auto 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: var(--row, 3rem);
+  padding: 0 0.6rem;
+  border-radius: var(--radius);
+  background: var(--ink-2);
+  border-left: 4px solid var(--horse-color, var(--cloud-dim));
+  transform: translateY(0);
+  transition: transform var(--dur) var(--ease-spring), background var(--dur);
+}
+
+.standing__rank {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  width: 1.6rem;
+  color: var(--cloud-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.standing[data-lead="true"] .standing__rank {
+  color: var(--hero);
+}
+
+.standing__emoji {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.standing__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 800;
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.standing__bar {
+  flex: 0 0 22%;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.standing__bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--horse-color, var(--hero));
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+/* ------------------------------------------------------------ results screen */
+
+.winner {
+  position: relative;
+  flex: 0 0 auto;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(160deg, rgba(255, 197, 61, 0.28), rgba(255, 197, 61, 0.06));
+  border: 1px solid rgba(255, 197, 61, 0.4);
+  overflow: hidden;
+  text-align: center;
+}
+
+.winner__kicker {
+  font-size: 0.65rem;
+  letter-spacing: 0.24em;
+  font-weight: 800;
+  color: var(--hero);
+}
+
+.winner__name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 8vw, 2.2rem);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.winner__emoji {
+  font-size: 1.15em;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
+}
+
+.winner__note {
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--cloud-dim);
+  min-height: 1em;
+}
+
+.statcard {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: var(--radius-lg);
+  background: var(--ink-2);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+
+.statcard__title {
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  color: var(--cloud-dim);
+  font-family: var(--font-ui);
+  font-weight: 800;
+}
+
+.statgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  flex: 0 0 auto;
+}
+
+/* Unlock stats are the new bragging rights, but they're a footnote to the taps —
+   three narrower cells rather than three more full-width ones. */
+.statgrid--trio {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.statgrid__cell {
+  display: flex;
+  flex-direction: column;
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.statgrid--trio .statgrid__cell {
+  padding: 0.35rem 0.45rem;
+}
+
+.statgrid__cell b {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--hero);
+  font-variant-numeric: tabular-nums;
+}
+
+.statgrid--trio .statgrid__cell b {
+  font-size: 1.15rem;
+}
+
+.statgrid--trio .statgrid__cell span {
+  font-size: 0.55rem;
+}
+
+.statgrid__cell span {
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  font-weight: 800;
+  color: var(--cloud-dim);
+}
+
+.statcard__line {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--cloud);
+}
+
+/* --------------------------------------------------------------- dead end */
+
+.screen--dead {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.dead {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: 20rem;
+}
+
+.dead__emoji {
+  font-size: 3.4rem;
+  line-height: 1;
+}
+
+.dead__title {
+  font-size: 1.6rem;
+}
+
+.dead__text {
+  margin: 0;
+  color: var(--cloud-dim);
+  font-size: 0.9rem;
+}
+
+.codeform {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 0.4rem;
+}
+
+.codeform[hidden] {
+  display: none;
+}
+
+.codeform__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: var(--ink-2);
+  color: var(--cloud);
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: 0.3em;
+  text-align: center;
+  text-transform: uppercase;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.codeform__input:focus {
+  outline: none;
+  border-color: var(--hero);
+}
+
+/* --------------------------------------------------------- target sheet */
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: var(--scrim);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur);
+}
+
+.scrim[data-visible="true"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 81;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 78vh;
+  max-height: 78dvh;
+  padding: 0.5rem 0.9rem calc(0.9rem + env(safe-area-inset-bottom));
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--ink-2);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: var(--shadow-2);
+  transform: translateY(102%);
+  transition: transform var(--dur-slow) var(--ease-spring);
+}
+
+.sheet[data-visible="true"] {
+  transform: none;
+}
+
+.sheet__grip {
+  width: 2.6rem;
+  height: 0.28rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  margin: 0.1rem auto 0.2rem;
+}
+
+.sheet__head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 0.04em;
+}
+
+.sheet__emoji {
+  font-size: 1.4rem;
+}
+
+.sheet__head b {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet__tags {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.sheet__blurb {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--cloud-dim);
+}
+
+.sheet__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  overflow-y: auto;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.sheet__list::-webkit-scrollbar {
+  display: none;
+}
+
+.targetbtn {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: var(--radius);
+  background: var(--ink-3);
+  border-left: 5px solid var(--horse-color, var(--cloud-dim));
+  text-align: left;
+  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur);
+}
+
+.targetbtn:active {
+  transform: scale(0.975);
+}
+
+.targetbtn__emoji {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.targetbtn__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.targetbtn__rank {
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--cloud-dim);
+  letter-spacing: 0.06em;
+}
+
+.sheet__cancel {
+  width: 100%;
+  justify-content: center;
+}
+
+/* ----------------------------------------------------- unlock challenge */
+
+/* Every millimetre goes to the prompt and the four targets: the player is not
+   reading this sheet, they are getting rid of it so they can tap again. */
+.sheet--challenge {
+  border-top-color: var(--pol-color, var(--hero));
+  box-shadow: 0 -2px 0 var(--pol-color, var(--hero)), var(--shadow-2);
+}
+
+.challenge__kicker {
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: var(--cloud-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet--challenge[data-wrong="true"] .challenge__kicker {
+  color: var(--red);
+}
+
+.challenge__prompt {
+  padding: 0.5rem 0.4rem;
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.3);
+  font-family: var(--font-display);
+  font-size: clamp(1.9rem, 11vw, 3rem);
+  font-weight: 800;
+  line-height: 1.1;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet--challenge[data-wrong="true"] .challenge__prompt {
+  color: var(--red);
+  animation: shake 0.4s var(--ease-out);
+}
+
+.challenge__choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+/* Three choices: the last one spans, so no button is orphaned or undersized. */
+.challenge__choices[data-count="3"] > :last-child {
+  grid-column: span 2;
+}
+
+.choicebtn {
+  min-height: 3.5rem;
+  border-radius: var(--radius);
+  background: var(--ink-3);
+  box-shadow: var(--shadow-1);
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 7vw, 2rem);
+  font-weight: 800;
+  line-height: 1;
+  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur),
+    opacity var(--dur);
+}
+
+.choicebtn:active {
+  transform: scale(0.955);
+}
+
+.choicebtn[data-picked="true"] {
+  background: var(--pol-color, var(--hero));
+  color: var(--ink);
+}
+
+.sheet--challenge[data-busy="true"] .choicebtn:not([data-picked="true"]) {
+  opacity: 0.4;
+}
+
+.challenge__hint {
+  margin: 0;
+  min-height: 1em;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--cloud-dim);
+  text-align: center;
+}
+
+/* -------------------------------------------------------------- toasts */
+
+.toasts {
+  position: fixed;
+  left: 50%;
+  top: calc(env(safe-area-inset-top) + 0.5rem);
+  z-index: 85;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  width: min(22rem, calc(100% - 1.6rem));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  max-width: 100%;
+  padding: 0.5rem 0.85rem;
+  border-radius: 999px;
+  background: rgba(20, 21, 40, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: var(--shadow-2);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--cloud);
+}
+
+.toast[data-kind="intel"] {
+  border-color: rgba(199, 125, 255, 0.6);
+  background: rgba(52, 27, 74, 0.94);
+}
+
+.toast[data-kind="error"] {
+  border-color: rgba(255, 93, 93, 0.6);
+}
+
+.toast[data-kind="good"] {
+  border-color: rgba(62, 220, 129, 0.6);
+}
+
+.toast__emoji {
+  font-size: 1.05rem;
+  flex: 0 0 auto;
+}
+
+.toast__text {
+  min-width: 0;
+  line-height: 1.25;
+}
+
+/* ---------------------------------------------------------- offline bar */
+
+.offlinebar {
+  position: absolute;
+  left: 50%;
+  top: calc(env(safe-area-inset-top) + 0.4rem);
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(255, 93, 93, 0.9);
+  color: #2a0000;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  transform: translate(-50%, -180%);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform var(--dur-slow) var(--ease-spring), opacity var(--dur);
+}
+
+body[data-conn="offline"] .offlinebar,
+body[data-conn="connecting"] .offlinebar {
+  transform: translate(-50%, 0);
+  opacity: 1;
+}
+
+body[data-conn="connecting"] .offlinebar {
+  background: rgba(255, 197, 61, 0.92);
+  color: #3a2600;
+}
+
+/* Nothing to reconnect to from a dead end — don't nag. */
+body[data-active-screen="dead"] .offlinebar {
+  display: none;
+}
+
+.offlinebar__dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 0.8s infinite;
+}
+
+/* ---------------------------------------------------------- keyframes */
+
+@keyframes maxglow {
+  0%,
+  100% {
+    box-shadow: 0 8px 0 rgba(0, 0, 0, 0.32), 0 0 0 0 rgba(255, 255, 255, 0.5),
+      inset 0 2px 0 rgba(255, 255, 255, 0.55);
+  }
+  50% {
+    box-shadow: 0 8px 0 rgba(0, 0, 0, 0.32), 0 0 34px 6px rgba(255, 224, 143, 0.75),
+      inset 0 2px 0 rgba(255, 255, 255, 0.8);
+  }
+}
+
+@keyframes flashUp {
+  0% {
+    background: rgba(62, 220, 129, 0.55);
+    box-shadow: 0 0 0 2px var(--green);
+  }
+  100% {
+    background: var(--ink-2);
+    box-shadow: none;
+  }
+}
+
+@keyframes flashDown {
+  0% {
+    background: rgba(255, 93, 93, 0.55);
+    box-shadow: 0 0 0 2px var(--red);
+  }
+  100% {
+    background: var(--ink-2);
+    box-shadow: none;
+  }
+}
+
+@keyframes bob {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translateY(-0.4rem);
+    opacity: 1;
+  }
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-6px);
+  }
+  50% {
+    transform: translateX(5px);
+  }
+  75% {
+    transform: translateX(-3px);
+  }
+}
+
+@keyframes nudge {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.07);
+  }
+}
+
+/* Short phones: reclaim vertical space from the chrome, never from the tap zone. */
+@media (max-height: 680px) {
+  .screen {
+    gap: 0.4rem;
+    padding: 0.35rem 0.75rem 0.5rem;
+  }
+
+  .join__title {
+    font-size: 1.35rem;
+  }
+
+  .mycard__emoji {
+    font-size: 2.2rem;
+  }
+
+  .mycard__name {
+    font-size: 1.25rem;
+  }
+}
+
+/* --------------------------------------------------- multi-horse backing */
+
+.join__confirm {
+  flex: 1 1 auto;
+  font-size: 1rem;
+}
+
+.horsepick__order {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.4rem;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--hero);
+  color: #2b1c00;
+  font-weight: 800;
+  font-size: 0.78rem;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity var(--dur-fast), transform var(--dur-fast) var(--ease-spring);
+}
+
+.horsepick[data-selected="true"] .horsepick__order:not(:empty) {
+  opacity: 1;
+  transform: none;
+}
+
