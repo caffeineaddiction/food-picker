@@ -813,13 +813,12 @@ class Display {
     const signature = `${this.state.code}|${publicUrl}`;
     if (this.qrLoadedFor === signature) return;
     this.qrLoadedFor = signature;
+    // The SVG is generated server-side by segno (a QR library), not from user
+    // input, so inline insertion is safe and required for CSS sizing rules.
     fetch(`/api/rooms/${encodeURIComponent(this.state.code)}/qr.svg`)
-      .then((response) => response.blob())
-      .then((blob) => {
-        const img = document.createElement("img");
-        img.src = URL.createObjectURL(blob);
-        img.alt = "QR code";
-        $("qrHolder").replaceChildren(img);
+      .then((response) => response.text())
+      .then((svg) => {
+        $("qrHolder").innerHTML = svg;
       })
       .catch(() => {
         $("qrHolder").textContent = "QR unavailable";
