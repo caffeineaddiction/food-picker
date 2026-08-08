@@ -99,7 +99,8 @@ def test_taps_never_exceed_the_documented_ceiling():
     for player in players:
         player.credit_taps(0.0, 999)
     total = sum(player.effective_tps(0.5) for player in players)
-    bonus = C.TAP_BONUS_MAX * (1 - pow(2.718281828, -total / C.TAP_BONUS_SCALE))
+    import math
+    bonus = C.TAP_BONUS_MAX * (1 - math.exp(-total / C.TAP_BONUS_SCALE))
     assert bonus <= C.TAP_BONUS_MAX + 1e-9
 
 

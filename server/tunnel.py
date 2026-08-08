@@ -50,6 +50,7 @@ class Tunnel:
     url: str | None = None
     error: str | None = None
     _log: list[str] = field(default_factory=list)
+    _lock: threading.Lock = field(default_factory=threading.Lock)
     _found: threading.Event = field(default_factory=threading.Event)
 
     def start(self) -> str | None:
@@ -100,13 +101,14 @@ class Tunnel:
         if stream is None:  # pragma: no cover - defensive
             return
         for line in stream:
-            self._log.append(line.rstrip())
-            del self._log[:-40]  # keep the tail only, for diagnostics
-            if self.url is None:
-                match = URL_PATTERN.search(line)
-                if match:
-                    self.url = match.group(0)
-                    self._found.set()
+            with self._lock:
+                self._log.append(line.rstrip())
+                del self._log[:-40]  # keep the tail only, for diagnostics
+                if self.url is None:
+                    match = URL_PATTERN.search(line)
+                    if match:
+                        self.url = match.group(0)
+                        self._found.set()
         # cloudflared exited: unblock anyone still waiting.
         self._found.set()
 
@@ -115,7 +117,8 @@ class Tunnel:
         return self.process is not None and self.process.poll() is None
 
     def recent_log(self, lines: int = 8) -> list[str]:
-        return self._log[-lines:]
+        with self._lock:
+            return self._log[-lines:]
 
     def stop(self) -> None:
         """Terminate the tunnel, escalating to a kill if it ignores us."""

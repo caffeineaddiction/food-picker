@@ -35,7 +35,8 @@ def room(client: TestClient) -> dict:
 def wait_for_gates(socket, limit: int = 400) -> None:
     """Block until the engine leaves the countdown — taps before that are ignored."""
 
-    assert drain(socket, "snapshot", limit=limit, where=lambda msg: msg["ph"] == "running")
+    result = drain(socket, "snapshot", limit=limit, where=lambda msg: msg["ph"] == "running")
+    assert result is not None, "never reached 'running' phase"
 
 
 def drain(socket, wanted: str, limit: int = 400, where=None) -> dict | None:

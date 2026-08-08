@@ -97,8 +97,8 @@ def test_pace_bands_cover_slow_and_fast_styles():
 
 
 def test_generation_is_deterministic_for_a_seed():
-    first = [generate(random.Random(5)).prompt for _ in range(1)]
-    second = [generate(random.Random(5)).prompt for _ in range(1)]
+    first = [generate(random.Random(5)).prompt for _ in range(10)]
+    second = [generate(random.Random(5)).prompt for _ in range(10)]
     assert first == second
 
 

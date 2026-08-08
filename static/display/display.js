@@ -34,6 +34,13 @@ const C_CEREMONY_PARTY_SECONDS = 25;
 
 const $ = (id) => document.getElementById(id);
 
+/** Escape HTML special characters to prevent XSS from server-sourced strings. */
+function esc(str) {
+  const el = document.createElement("span");
+  el.textContent = str;
+  return el.innerHTML;
+}
+
 class Display {
   constructor() {
     this.renderer = new Renderer($("track"));
@@ -640,8 +647,8 @@ class Display {
       const button = document.createElement("button");
       button.className = "pick";
       button.dataset.value = mode.id;
-      button.innerHTML = `<span class="pick__title">${mode.emoji} ${mode.name}</span>
-        <span class="pick__sub">${mode.tagline}<br /><i>${mode.influence}</i></span>`;
+      button.innerHTML = `<span class="pick__title">${esc(mode.emoji)} ${esc(mode.name)}</span>
+        <span class="pick__sub">${esc(mode.tagline)}<br /><i>${esc(mode.influence)}</i></span>`;
       button.addEventListener("click", () => this.selectMode(mode.id));
       modeGrid.appendChild(button);
     }
@@ -656,8 +663,8 @@ class Display {
       const button = document.createElement("button");
       button.className = "pick";
       button.dataset.value = track.id;
-      button.innerHTML = `<span class="pick__title">${track.name}</span>
-        <span class="pick__sub">${track.tagline}${track.twist ? `<br /><i>${track.twist}</i>` : ""}</span>`;
+      button.innerHTML = `<span class="pick__title">${esc(track.name)}</span>
+        <span class="pick__sub">${esc(track.tagline)}${track.twist ? `<br /><i>${esc(track.twist)}</i>` : ""}</span>`;
       button.addEventListener("click", () => this.selectTrack(track.id));
       trackGrid.appendChild(button);
     }
@@ -721,9 +728,9 @@ class Display {
       card.style.animationDelay = `${index * 40}ms`;
       const breed = this.state.breeds?.get(horse.breed);
       card.innerHTML = `
-        <span class="horsecard__emoji">${horse.emoji}</span>
-        <span class="horsecard__name">${horse.name}</span>
-        <span class="horsecard__breed">${breed ? `${breed.icon} ${breed.name}` : ""}</span>
+        <span class="horsecard__emoji">${esc(horse.emoji)}</span>
+        <span class="horsecard__name">${esc(horse.name)}</span>
+        <span class="horsecard__breed">${breed ? `${esc(breed.icon)} ${esc(breed.name)}` : ""}</span>
         ${horse.backers ? `<span class="horsecard__backers">${"▲".repeat(Math.min(horse.backers, 5))}</span>` : ""}
       `;
       card.title = `Click to change ${horse.name}'s breed`;
@@ -745,9 +752,9 @@ class Display {
       chip.dataset.connected = String(person.connected);
       const horse = this.state.horseSpecs.get(person.horse_id);
       chip.style.setProperty("--horse-color", horse?.color || "#8a8aa0");
-      chip.innerHTML = `<span class="namechip__dot"></span>${person.name}${
+      chip.innerHTML = `<span class="namechip__dot"></span>${esc(person.name)}${
         person.ready ? " ✅" : ""
-      }${horse ? ` ${horse.emoji}` : ""}`;
+      }${horse ? ` ${esc(horse.emoji)}` : ""}`;
       roster.appendChild(chip);
     }
     $("rosterCount").textContent = String(people.length);
@@ -755,8 +762,8 @@ class Display {
     const stats = state.stats;
     $("sessionStats").innerHTML = stats?.races
       ? `<span>🏁 <b>${stats.races}</b> races tonight</span>
-         ${stats.topFoods[0] ? `<span>👑 <b>${stats.topFoods[0].name}</b> leads with ${stats.topFoods[0].value}</span>` : ""}
-         ${stats.topTappers[0] ? `<span>👍 <b>${stats.topTappers[0].name}</b> has tapped ${stats.topTappers[0].value} times</span>` : ""}`
+         ${stats.topFoods[0] ? `<span>👑 <b>${esc(stats.topFoods[0].name)}</b> leads with ${stats.topFoods[0].value}</span>` : ""}
+         ${stats.topTappers[0] ? `<span>👍 <b>${esc(stats.topTappers[0].name)}</b> has tapped ${stats.topTappers[0].value} times</span>` : ""}`
       : "";
 
     if (state.betting?.open) {
@@ -783,8 +790,8 @@ class Display {
         chip.dataset.selected = String(breed.id === horse.breed);
         chip.title = breed.blurb;
         chip.innerHTML = `
-          <span class="breedchip__icon">${breed.icon}</span>
-          <span class="breedchip__name">${breed.name}</span>
+          <span class="breedchip__icon">${esc(breed.icon)}</span>
+          <span class="breedchip__name">${esc(breed.name)}</span>
         `;
         chip.addEventListener("click", () => {
           this.socket?.send({ t: "host_set_breed", horse_id: horse.id, breed: breed.id });
@@ -806,10 +813,13 @@ class Display {
     const signature = `${this.state.code}|${publicUrl}`;
     if (this.qrLoadedFor === signature) return;
     this.qrLoadedFor = signature;
-    fetch(`/api/rooms/${this.state.code}/qr.svg`)
-      .then((response) => response.text())
-      .then((svg) => {
-        $("qrHolder").innerHTML = svg;
+    fetch(`/api/rooms/${encodeURIComponent(this.state.code)}/qr.svg`)
+      .then((response) => response.blob())
+      .then((blob) => {
+        const img = document.createElement("img");
+        img.src = URL.createObjectURL(blob);
+        img.alt = "QR code";
+        $("qrHolder").replaceChildren(img);
       })
       .catch(() => {
         $("qrHolder").textContent = "QR unavailable";
